@@ -2,47 +2,30 @@ from handlers import *
 
 
 async def main():
-    global tasklist
-    global openusers
-    updatenotifications()
-    #notificatorthread = Thread(target=notifier)
-    #notificatorthread.start()
-    res = await fetch(URL)
-    res = json.loads(res)
-    params = res['response']
-    tasklist.append(['NotifyService', asyncio.create_task(notifier())])
-    tasklist.append(['System', asyncio.create_task(taskmanager())])
-    #tasklist.append(['FileSystem', asyncio.create_task(filewriter())])
+    """Главная функция
+
+    Запускает бота и обработку первых сообщений пользователей
+
+    """
+    await open_db_conn()
+    await update_notifications()
+    await login()
+    task_list.append(('NotifyService', asyncio.create_task(notifier())))
+    task_list.append(('System', asyncio.create_task(task_manager())))
+    task_list.append(('WriteVK', asyncio.create_task(fetch_write())))
+    task_list.append(('ReadVK', asyncio.create_task(fetch_read())))
     while True:
-        long_pool_url = LONG_POOL_URL.format(**params)
-        try:
-            res = await fetch(long_pool_url)
-            res = json.loads(res)
-            if res and res['updates']:
-                params['ts'] = res['ts']
-                for msg in res['updates']:
-                    if 'text' not in msg['object']:
-                        print('Process msg')
-                        if msg['object']['message']['text'] == 'ping':
-                            tasklist.append(asyncio.gather(pong(msg.copy())))
-                        else:
-                            if msg['object']['message']['from_id'] not in openusers:
-                                newuser = user(msg['object']['message']['from_id'])
-                                #newuser.id = msg['object']['message']['from_id']
-                                openusers.append(msg['object']['message']['from_id'])
-                                #users.append(newuser)
-                                tasklist.append([msg['object']['message']['from_id'], asyncio.create_task(begin(newuser, msg['object']['message']['text'], params.copy()))])
-                            else:
-                                pass
-        except:
-            await asyncio.sleep(15)
-            raise
-        else:
-            print('reconnect')
-            await asyncio.sleep(1)
+        for i in read_list:
+            if len(read_list[i]) > 0 and i not in open_users:
+                newuser = User(i)
+                open_users.append(i)
+                task_list.append((i, asyncio.create_task(begin(newuser, 
+                                                            read_list[i][0]))))
+                del read_list[i][0]
+        await asyncio.sleep(TIMEOUT)
 
 
 try:
     asyncio.run(main())
 except KeyboardInterrupt:
-    print('\nPlease wait...')
+    print('Ctrl-C - Stopped')
